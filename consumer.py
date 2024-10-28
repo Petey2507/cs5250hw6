@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 logging.basicConfig(filename='consumer.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
-s3_client = boto3.client('s3', region_name='us-west-2')
-dynamodb_client = boto3.resource('dynamodb', region_name='us-west-2')
+s3_client = boto3.client('s3', region_name='us-east-1')
+dynamodb_client = boto3.resource('dynamodb', region_name='us-east-1')
 
 parser = argparse.ArgumentParser(description="Widget request command.")
 parser.add_argument("--storage", choices=["s3", "dynamodb"], required=True, help="storage choice")
