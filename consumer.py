@@ -37,3 +37,25 @@ def get_widget_request(bucket_name):
     except ClientError as error_message:
         print(f"Failed to get request in S3: {error_message}")
         return None, None
+                
+# Used to debug, ensures schema has everything that is needed.
+def check_schema(req_data):
+    req_fields = {"type", "requestId", "widgetId", "owner"}
+    if not all(field in req_data for field in req_fields):
+        raise ValueError("missing fields in request")
+    if not re.match(r"create|delete|update", req_data["type"]):
+        raise ValueError("request was not 'create', 'delete', or 'update'")
+
+def s3_store(widget_data, bucket_name):
+    owner_path = widget_data["owner"].replace(" ", "-").lower()
+    widget_id = widget_data["widgetId"]
+    key = f"widgets/{owner_path}/{widget_id}.json"
+    try:
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=key,
+            Body=json.dumps(widget_data)
+        )
+        print(f"widget {widget_id} stored in {key}")
+    except ClientError as error_message:
+        print(f"unable to store widget: {error_message}")
