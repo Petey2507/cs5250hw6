@@ -80,3 +80,31 @@ def create_request_handle(widget_data):
         s3_store(widget_data, args.bucket)
     elif args.storage == "dynamodb":
         dynamodb_store(widget_data)
+
+def execute_request(req_data):
+    if req_data["type"] == "create":
+        create_request_handle(req_data)
+    elif req_data["type"] == "delete":
+        print("Delete request implementation PLACEHOLDER")
+    elif req_data["type"] == "update":
+        print("Update request implementation PLACEHOLDER")
+    else:
+        print(f"Request not recognized: {req_data['type']}")
+
+def main():
+    while True:
+        req_data, key = get_widget_request("usu-cs5250-matrix2507-requests")
+        if req_data:
+            try:
+                check_schema(req_data)
+                execute_request(req_data)
+                s3_client.delete_object(Bucket="usu-cs5250-matrix2507-requests", Key=key)
+            except ValueError as error_message:
+                print(f"Schema validation error: {error_message}")
+            except json.JSONDecodeError:
+                print("JSON not formatted correctly")
+        else:
+            time.sleep(args.interval / 1000)
+
+if __name__ == "__main__":
+    main()
