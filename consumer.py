@@ -59,3 +59,24 @@ def s3_store(widget_data, bucket_name):
         print(f"widget {widget_id} stored in {key}")
     except ClientError as error_message:
         print(f"unable to store widget: {error_message}")
+
+def dynamodb_store(widget_data):
+    try:
+        item = {
+            "id": widget_data["widgetId"],
+            "owner": widget_data["owner"],
+            "label": widget_data.get("label", ""),
+            "description": widget_data.get("description", "")
+        }
+        for attribute in widget_data.get("otherAttributes", []):
+            item[attribute["name"]] = attribute["value"]
+        table.put_item(Item=item)
+        print(f"widget {widget_data['widgetId']} stored")
+    except ClientError as error_message:
+        print(f"unable to store widget: {error_message}")
+
+def create_request_handle(widget_data):
+    if args.storage == "s3":
+        s3_store(widget_data, args.bucket)
+    elif args.storage == "dynamodb":
+        dynamodb_store(widget_data)
