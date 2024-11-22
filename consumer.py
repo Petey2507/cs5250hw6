@@ -87,22 +87,86 @@ def dynamodb_store(widget_data, table):
         logging.info(f"unable to store widget: {error_message}")
         print(f"unable to store widget: {error_message}")
 
-
 def create_request_handle(widget_data):
     if args.storage == "s3":
         s3_store(widget_data, args.bucket)
     elif args.storage == "dynamodb":
         dynamodb_store(widget_data, table)
+        
+def s3_delete(widget_data, bucket_name):
+    owner_path = widget_data["owner"].replace(" ", "-").lower()
+    widget_id = widget_data["widgetId"]
+    key = f"widgets/{owner_path}/{widget_id}.json"
+    try:
+        s3_client.delete_object(Bucket=bucket_name, Key=key)
+        logging.info(f"widget {widget_id} deleted from {key}")
+        print(f"widget {widget_id} deleted from {key}")
+    except ClientError as error_message:
+        logging.info(f"unable to delete widget: {error_message}")
+        print(f"unable to delete widget: {error_message}")
+
+def dynamodb_delete(widget_data, table):
+    try:
+        table.delete_item(Key={"id": widget_data["widgetId"]})
+        logging.info(f"widget {widget_data['widgetId']} deleted")
+        print(f"widget {widget_data['widgetId']} deleted")
+    except ClientError as error_message:
+        logging.info(f"unable to delete widget: {error_message}")
+        print(f"unable to delete widget: {error_message}")
+
+def delete_request_handle(widget_data):
+    if args.storage == "s3":
+        s3_delete(widget_data, args.bucket)
+    elif args.storage == "dynamodb":
+        dynamodb_delete(widget_data, table)
+        
+def s3_update(widget_data, bucket_name):
+    owner_path = widget_data["owner"].replace(" ", "-").lower()
+    widget_id = widget_data["widgetId"]
+    key = f"widgets/{owner_path}/{widget_id}.json"
+    try:
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=key,
+            Body=json.dumps(widget_data)
+        )
+        logging.info(f"widget {widget_id} updated in {key}")
+        print(f"widget {widget_id} updated in {key}")
+    except ClientError as error_message:
+        logging.info(f"unable to update widget: {error_message}")
+        print(f"unable to update widget: {error_message}")
+
+def dynamodb_update(widget_data, table):
+    try:
+        update_expression = "SET " + ", ".join(f"#{k}=:{k}" for k in widget_data if k not in ["widgetId", "id"])
+        expression_attribute_names = {f"#{k}": k for k in widget_data if k not in ["widgetId", "id"]}
+        expression_attribute_values = {f":{k}": v for k, v in widget_data.items() if k not in ["widgetId", "id"]}
+        
+        table.update_item(
+            Key={"id": widget_data["widgetId"]},
+            UpdateExpression=update_expression,
+            ExpressionAttributeNames=expression_attribute_names,
+            ExpressionAttributeValues=expression_attribute_values
+        )
+        logging.info(f"widget {widget_data['widgetId']} updated")
+        print(f"widget {widget_data['widgetId']} updated")
+    except ClientError as error_message:
+        logging.info(f"unable to update widget: {error_message}")
+        print(f"unable to update widget: {error_message}")
+
+def update_request_handle(widget_data):
+    if args.storage == "s3":
+        s3_update(widget_data, args.bucket)
+    elif args.storage == "dynamodb":
+        dynamodb_update(widget_data, table)
 
 def execute_request(req_data):
     if req_data["type"] == "create":
         create_request_handle(req_data)
     elif req_data["type"] == "delete":
-        logging.info("Delete request implementation PLACEHOLDER")
-        print("Delete request implementation PLACEHOLDER")
+        delete_request_handle(req_data)
     elif req_data["type"] == "update":
-        logging.info("Update request implementation PLACEHOLDER")
-        print("Update request implementation PLACEHOLDER")
+        update_request_handle(req_data)
     else:
         logging.info(f"Request not recognized: {req_data['type']}")
         print(f"Request not recognized: {req_data['type']}")
