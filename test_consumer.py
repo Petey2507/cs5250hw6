@@ -1,12 +1,21 @@
 import unittest
-import logging
 from unittest import mock
 from botocore.exceptions import ClientError
 import sys
 
 sys.argv = ["test_consumer.py", "--storage", "s3", "--bucket", "dummy-bucket"]
 
-from consumer import get_widget_request, check_schema, s3_store, dynamodb_store, execute_request
+from consumer import (
+    get_widget_request,
+    check_schema,
+    s3_store,
+    dynamodb_store,
+    execute_request,
+    s3_delete,
+    dynamodb_delete,
+    s3_update,
+    dynamodb_update,
+)
 
 class TestGetWidgetRequest(unittest.TestCase):
     @mock.patch('consumer.s3_client')
@@ -73,6 +82,43 @@ class TestStorageFunctions(unittest.TestCase):
             }
         )
 
+    @mock.patch('consumer.s3_client')
+    def test_s3_delete(self, mock_s3):
+        widget_data = {"owner": "user", "widgetId": "widget1"}
+        s3_delete(widget_data, 'dummy-bucket')
+        mock_s3.delete_object.assert_called_once_with(
+            Bucket='dummy-bucket',
+            Key='widgets/user/widget1.json'
+        )
+
+    @mock.patch('consumer.dynamodb_client.Table')
+    def test_dynamodb_delete(self, mock_table):
+        mock_table_instance = mock_table.return_value
+        widget_data = {"widgetId": "widget1"}
+        dynamodb_delete(widget_data, mock_table_instance)
+        mock_table_instance.delete_item.assert_called_once_with(Key={"id": "widget1"})
+
+    @mock.patch('consumer.s3_client')
+    def test_s3_update(self, mock_s3):
+        widget_data = {"owner": "user", "widgetId": "widget1"}
+        s3_update(widget_data, 'dummy-bucket')
+        mock_s3.put_object.assert_called_once_with(
+            Bucket='dummy-bucket',
+            Key='widgets/user/widget1.json',
+            Body=mock.ANY
+        )
+
+    @mock.patch('consumer.dynamodb_client.Table')
+    def test_dynamodb_update(self, mock_table):
+        mock_table_instance = mock_table.return_value
+        widget_data = {"widgetId": "widget1", "owner": "user", "label": "new label"}
+        dynamodb_update(widget_data, mock_table_instance)
+        mock_table_instance.update_item.assert_called_once_with(
+            Key={"id": "widget1"},
+            UpdateExpression="SET #owner=:owner, #label=:label",
+            ExpressionAttributeNames={"#owner": "owner", "#label": "label"},
+            ExpressionAttributeValues={":owner": "user", ":label": "new label"}
+        )
 
 class TestExecuteRequest(unittest.TestCase):
     @mock.patch('consumer.create_request_handle')
@@ -81,16 +127,17 @@ class TestExecuteRequest(unittest.TestCase):
         execute_request(req_data)
         mock_create.assert_called_once_with(req_data)
 
-    @mock.patch('consumer.logging')
-    def test_execute_request_delete(self, mock_logging):
-        execute_request({"type": "delete"})
-        mock_logging.info.assert_called_once_with("Delete request implementation PLACEHOLDER")
+    @mock.patch('consumer.delete_request_handle')
+    def test_execute_request_delete(self, mock_delete):
+        req_data = {"type": "delete", "widgetId": "widget1"}
+        execute_request(req_data)
+        mock_delete.assert_called_once_with(req_data)
 
-    @mock.patch('consumer.logging')
-    def test_execute_request_update(self, mock_logging):
-        execute_request({"type": "update"})
-        mock_logging.info.assert_called_once_with("Update request implementation PLACEHOLDER")
-
+    @mock.patch('consumer.update_request_handle')
+    def test_execute_request_update(self, mock_update):
+        req_data = {"type": "update", "widgetId": "widget1"}
+        execute_request(req_data)
+        mock_update.assert_called_once_with(req_data)
 
 if __name__ == '__main__':
     unittest.main()
